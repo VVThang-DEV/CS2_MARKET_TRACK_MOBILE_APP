@@ -107,26 +107,6 @@ Prices update every 30 minutes while the app is active:
 - **Price Data**: [CSGOFloat API](https://csfloat.com)
 - **Images**: Various CS:GO community sources (byMykel)
 
-## Assignment Requirements ✅
-
-All requirements met:
-
-- ✅ List screen with LazyColumn/FlatList
-- ✅ Title + image display
-- ✅ Loading states
-- ✅ Error handling
-- ✅ Navigation with ID
-- ✅ Search bar
-- ✅ Auto-generated category filters
-- ✅ Detail screen with all item data
-- ✅ Favorite toggle button
-- ✅ Button state reflects database
-- ✅ Immediate UI updates
-- ✅ Favorites screen (database-only)
-- ✅ Real-time updates
-- ✅ Empty state handling
-- ✅ Offline-first with local caching
-
 ## Notes
 
 This was built for a mobile development course assignment. The app works well for browsing skins and learning about prices, but it's not a replacement for actual marketplace apps. Just a student project that turned out pretty decent.
