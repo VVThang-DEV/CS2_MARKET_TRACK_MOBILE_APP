@@ -9,7 +9,7 @@ A React Native mobile app for browsing CS:GO weapon skins with offline support, 
 - Fetches CS:GO skin data from a public API
 - Works offline by caching everything in local storage
 - Lets you favorite skins for quick access
-- Tracks real-time skin prices (updates every 10 minutes)
+- Tracks real-time skin prices (updates every 30 minutes)
 - Shows price history with charts
 - Filters by category, rarity, wear condition, and StatTrak
 
@@ -88,7 +88,7 @@ The app fetches from the API first, then saves everything to AsyncStorage. If yo
 
 ## Price Tracking
 
-Prices update every 10 minutes while the app is active:
+Prices update every 30 minutes while the app is active:
 
 - Local storage (instant access)
 - Supabase cloud (synced across devices)

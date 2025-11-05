@@ -110,7 +110,7 @@ export const WearConditionScreen = ({ route, navigation }) => {
             );
             if (data.length > 0) {
               console.log(
-                `Found ${data.length} wear variants for skin ${actualSkinId}`
+                `Found ${data.length} wear variants for skin ${normalizedSkinId}`
               );
               console.log("Sample variant:", JSON.stringify(data[0], null, 2));
               break;

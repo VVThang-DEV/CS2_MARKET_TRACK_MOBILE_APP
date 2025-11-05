@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   Dimensions,
   FlatList,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import ImageViewer from "react-native-image-zoom-viewer";
 import {
   COLORS,
   SPACING,
@@ -87,6 +89,7 @@ export const PatternSeedScreen = ({ route, navigation }) => {
   const [currentImage, setCurrentImage] = useState(skinImage);
   const [view3D, setView3D] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [zoomVisible, setZoomVisible] = useState(false);
 
   const isSpecialPattern = SPECIAL_PATTERNS.some((sp) =>
     patternName?.includes(sp)
@@ -218,16 +221,51 @@ export const PatternSeedScreen = ({ route, navigation }) => {
             {loading ? (
               <ActivityIndicator size="large" color={COLORS.primary} />
             ) : view3D && selectedSeed ? (
-              <SkinViewer3D
-                url={generate3DViewerUrl(skinName, selectedSeed.seed, 0.1)}
-                onError={() => setView3D(false)}
-              />
+              <View style={styles.developmentPlaceholder}>
+                <Ionicons
+                  name="construct-outline"
+                  size={64}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.developmentTitle}>3D Viewer</Text>
+                <Text style={styles.developmentText}>
+                  Interactive 3D viewer is still being developed.
+                </Text>
+                <Text style={styles.developmentSubtext}>
+                  Use 2D view to zoom and inspect the skin details.
+                </Text>
+                <TouchableOpacity
+                  style={styles.switchTo2DButton}
+                  onPress={() => setView3D(false)}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={20}
+                    color={COLORS.text}
+                  />
+                  <Text style={styles.switchTo2DText}>Switch to 2D View</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
-              <Image
-                source={{ uri: currentImage }}
-                style={styles.image}
-                resizeMode="contain"
-              />
+              <TouchableOpacity
+                onPress={() => setZoomVisible(true)}
+                activeOpacity={0.9}
+                style={styles.imageWrapper}
+              >
+                <Image
+                  source={{ uri: currentImage }}
+                  style={styles.image}
+                  resizeMode="contain"
+                />
+                <View style={styles.zoomHint}>
+                  <Ionicons
+                    name="expand-outline"
+                    size={16}
+                    color={COLORS.textMuted}
+                  />
+                  <Text style={styles.zoomHintText}>Tap to zoom</Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -341,6 +379,27 @@ export const PatternSeedScreen = ({ route, navigation }) => {
           scrollEnabled={false}
         />
       </View>
+
+      {/* Image Zoom Modal */}
+      <Modal visible={zoomVisible} transparent={true}>
+        <ImageViewer
+          imageUrls={[{ url: currentImage }]}
+          enableSwipeDown={true}
+          onSwipeDown={() => setZoomVisible(false)}
+          onCancel={() => setZoomVisible(false)}
+          backgroundColor="rgba(0, 0, 0, 0.95)"
+          renderHeader={() => (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setZoomVisible(false)}
+            >
+              <Ionicons name="close-circle" size={40} color={COLORS.text} />
+            </TouchableOpacity>
+          )}
+          renderIndicator={() => null}
+          saveToLocalByLongPress={false}
+        />
+      </Modal>
     </ScrollView>
   );
 };
@@ -385,9 +444,40 @@ const styles = StyleSheet.create({
   imageContainer3D: {
     height: 400,
   },
+  imageWrapper: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   image: {
     width: "100%",
     height: "100%",
+  },
+  zoomHint: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background + "E0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.sm,
+    gap: 4,
+  },
+  zoomHintText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    fontSize: 10,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: COLORS.background + "CC",
+    borderRadius: BORDER_RADIUS.full,
   },
   viewToggleButton: {
     position: "absolute",
@@ -596,5 +686,47 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: "700",
     letterSpacing: 0.5,
+  },
+  developmentPlaceholder: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: SPACING.xl,
+    gap: SPACING.md,
+  },
+  developmentTitle: {
+    ...TYPOGRAPHY.h3,
+    color: COLORS.text,
+    fontWeight: "600",
+    marginTop: SPACING.md,
+  },
+  developmentText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: SPACING.xs,
+  },
+  developmentSubtext: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    marginTop: SPACING.xs,
+  },
+  switchTo2DButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.xs,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    marginTop: SPACING.lg,
+    ...SHADOWS.medium,
+  },
+  switchTo2DText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text,
+    fontWeight: "600",
   },
 });

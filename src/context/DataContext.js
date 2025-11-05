@@ -55,11 +55,11 @@ export const DataProvider = ({ children }) => {
     // Initial price load
     loadPrices();
 
-    // Set up polling interval for price updates (every 10 minutes)
+    // Set up polling interval for price updates (every 30 minutes)
     priceUpdateInterval.current = setInterval(() => {
       console.log("Auto-refreshing prices (app is active)...");
       loadPrices();
-    }, 10 * 60 * 1000); // 10 minutes
+    }, 30 * 60 * 1000); // 30 minutes
 
     // Handle app state changes
     const subscription = AppState.addEventListener("change", (nextAppState) => {
