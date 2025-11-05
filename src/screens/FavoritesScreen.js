@@ -7,7 +7,7 @@ import { useData } from "../context/DataContext";
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from "../constants/theme";
 
 export const FavoritesScreen = ({ navigation }) => {
-  const { items } = useData();
+  const { items, isFavorite } = useData();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
@@ -19,8 +19,8 @@ export const FavoritesScreen = ({ navigation }) => {
 
   // Get only favorited items
   const favoriteItems = useMemo(() => {
-    return items.filter((item) => item.isFavorite);
-  }, [items]);
+    return items.filter((item) => isFavorite(item._id || item.id));
+  }, [items, isFavorite]);
 
   // Apply all filters to favorites
   const filteredFavorites = useMemo(() => {

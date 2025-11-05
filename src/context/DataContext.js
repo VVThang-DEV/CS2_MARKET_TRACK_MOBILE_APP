@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import {
   getItems,
@@ -13,6 +14,12 @@ import {
 } from "../database/storage";
 import { fetchSkinsFromAPI, determineCategory } from "../services/apiService";
 import { fetchPriceData } from "../services/priceService";
+import { savePriceSnapshot } from "../services/priceHistoryService";
+import {
+  savePriceSnapshotToSupabase,
+  isSupabaseConfigured,
+} from "../services/supabaseService";
+import { AppState } from "react-native";
 
 const DataContext = createContext();
 
@@ -30,6 +37,9 @@ export const DataProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [priceData, setPriceData] = useState(null);
+  const [lastPriceUpdate, setLastPriceUpdate] = useState(null);
+  const priceUpdateInterval = useRef(null);
+  const appState = useRef(AppState.currentState);
 
   // Load initial data
   useEffect(() => {
@@ -37,13 +47,76 @@ export const DataProvider = ({ children }) => {
     loadPrices();
   }, []);
 
-  // Load prices from CSGOFloat
+  // Set up real-time price updates with polling
+  // NOTE: Price tracking only works while app is open/active
+  // When app is closed or backgrounded for long periods, tracking pauses
+  // This is normal React Native behavior - background tasks require special setup
+  useEffect(() => {
+    // Initial price load
+    loadPrices();
+
+    // Set up polling interval for price updates (every 10 minutes)
+    priceUpdateInterval.current = setInterval(() => {
+      console.log("Auto-refreshing prices (app is active)...");
+      loadPrices();
+    }, 10 * 60 * 1000); // 10 minutes
+
+    // Handle app state changes
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      console.log(`App state changed: ${appState.current} -> ${nextAppState}`);
+
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        // App came to foreground, refresh prices to catch up
+        console.log("App became active, refreshing prices to catch up");
+        loadPrices();
+      } else if (nextAppState.match(/inactive|background/)) {
+        // App going to background
+        console.log("App going to background, price tracking will pause");
+      }
+
+      appState.current = nextAppState;
+    });
+
+    // Cleanup on unmount
+    return () => {
+      console.log("Cleaning up price update interval");
+      if (priceUpdateInterval.current) {
+        clearInterval(priceUpdateInterval.current);
+      }
+      subscription?.remove();
+    };
+  }, []);
+
+  // Load prices from CSGOFloat with history tracking (local + Supabase cloud)
   const loadPrices = async () => {
     try {
       const prices = await fetchPriceData();
       if (prices) {
         setPriceData(prices);
-        console.log("Price data loaded successfully");
+        setLastPriceUpdate(Date.now());
+
+        // Save snapshot to LOCAL storage (fast, always works)
+        await savePriceSnapshot(prices);
+
+        // Save to Supabase (centralized cloud storage)
+        if (isSupabaseConfigured()) {
+          try {
+            await savePriceSnapshotToSupabase(prices);
+            console.log("✅ Price snapshot saved to Supabase successfully!");
+          } catch (supabaseError) {
+            console.error("❌ Supabase error:", supabaseError.message);
+            console.warn("⚠️ Using local storage as fallback");
+          }
+        } else {
+          console.warn(
+            "⚠️ Supabase not configured - add your anon key to supabaseService.js"
+          );
+        }
+
+        console.log("Price data loaded and saved");
       }
     } catch (err) {
       console.error("Failed to load price data:", err);
@@ -196,6 +269,7 @@ export const DataProvider = ({ children }) => {
     isLoading,
     error,
     priceData,
+    lastPriceUpdate,
     syncFromAPI,
     toggleFavorite,
     getFavoriteItems,

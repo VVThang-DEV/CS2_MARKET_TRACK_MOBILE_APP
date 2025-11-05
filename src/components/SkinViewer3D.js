@@ -7,24 +7,69 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
+  Platform,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from "../constants/theme";
 
+/**
+ * SkinViewer3D Component
+ *
+ * LIMITATION: True 3D viewing requires actual CS:GO item inspect links from Steam inventory.
+ * Without real inspect links, we show an informative display with seed/wear data.
+ *
+ * To get real 3D views, you would need:
+ * 1. Access to Steam inventory inspect links
+ * 2. Integration with services like CSGOFloat that have item databases
+ * 3. Real CS:GO items in inventory
+ */
 export const SkinViewer3D = ({ url, onError }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [webViewError, setWebViewError] = useState(false);
+
+  // Check if WebView is supported on this platform
+  const isWebViewSupported = Platform.OS === "ios" || Platform.OS === "android";
 
   console.log(
     "SkinViewer3D received URL:",
     url ? url.substring(0, 100) + "..." : "null"
   );
+  console.log(
+    "Platform:",
+    Platform.OS,
+    "WebView supported:",
+    isWebViewSupported
+  );
 
-  const handleError = () => {
-    console.log("WebView error occurred");
+  // Set timeout to stop loading after 3 seconds (HTML is inline, should be fast)
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log("WebView load timeout - forcing end (3s)");
+        setLoading(false);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
+  const handleError = (syntheticEvent) => {
+    const errorMsg =
+      syntheticEvent?.nativeEvent?.description || "Unknown error";
+    console.log("WebView error occurred:", errorMsg);
     setLoading(false);
-    setError(true);
+
+    // Check if it's a platform support error
+    if (
+      errorMsg.includes("does not support") ||
+      errorMsg.includes("platform")
+    ) {
+      setWebViewError(true);
+    } else {
+      setError(true);
+    }
     onError && onError();
   };
 
@@ -148,10 +193,29 @@ export const SkinViewer3D = ({ url, onError }) => {
   console.log("HTML content length:", htmlContent.length);
   console.log("HTML preview:", htmlContent.substring(0, 200));
 
-  // Encode HTML as base64 data URI
-  const base64Html = btoa(unescape(encodeURIComponent(htmlContent)));
-  const dataUri = `data:text/html;base64,${base64Html}`;
-  console.log("Data URI created, length:", dataUri.length);
+  // Show fallback UI for unsupported platforms or WebView errors
+  if (!isWebViewSupported || webViewError) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.unsupportedContainer}>
+          <Ionicons name="desktop-outline" size={48} color={COLORS.textMuted} />
+          <Text style={styles.unsupportedTitle}>WebView Not Supported</Text>
+          <Text style={styles.unsupportedText}>
+            Interactive 3D viewing is not available on this platform (
+            {Platform.OS}). Please use a mobile device (iOS/Android) for the
+            full experience.
+          </Text>
+          <TouchableOpacity
+            style={styles.externalButton}
+            onPress={handleOpenExternally}
+          >
+            <Ionicons name="open-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.externalButtonText}>View on CSFloat</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -163,29 +227,49 @@ export const SkinViewer3D = ({ url, onError }) => {
       )}
       <WebView
         source={{
-          uri: dataUri,
+          html: htmlContent,
         }}
         style={styles.webview}
-        onLoadEnd={handleLoadEnd}
+        onLoadEnd={() => {
+          console.log("WebView loaded successfully");
+          handleLoadEnd();
+        }}
         onLoadStart={() => console.log("WebView load started")}
         onError={(syntheticEvent) => {
           console.error("WebView error:", syntheticEvent.nativeEvent);
-          handleError();
+          handleError(syntheticEvent);
+        }}
+        onRenderProcessGone={(syntheticEvent) => {
+          console.error(
+            "WebView render process gone:",
+            syntheticEvent.nativeEvent
+          );
+          handleError(syntheticEvent);
         }}
         onHttpError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.warn("WebView HTTP error:", nativeEvent);
         }}
         onMessage={(event) => {
-          console.log("WebView message:", event.nativeEvent.data);
+          const data = event.nativeEvent.data;
+          console.log("WebView message received:", data);
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "loaded") {
+              console.log("✅ In-game view successfully loaded:", parsed.skin);
+            }
+          } catch (e) {
+            console.log("WebView message (non-JSON):", data);
+          }
         }}
         startInLoadingState={false}
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        mixedContentMode="always"
-        allowsInlineMediaPlayback={true}
+        androidHardwareAccelerationDisabled={false}
         originWhitelist={["*"]}
         scalesPageToFit={true}
+        mixedContentMode="always"
+        allowsInlineMediaPlayback={true}
         scrollEnabled={false}
       />
       <View style={styles.overlay}>
@@ -206,12 +290,12 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: BORDER_RADIUS.lg,
     overflow: "hidden",
-    backgroundColor: "#0a0e14",
+    backgroundColor: "#1a2332",
+    minHeight: 300,
   },
   webview: {
     flex: 1,
-    backgroundColor: "transparent",
-    opacity: 1,
+    backgroundColor: "#1a2332",
   },
   loadingContainer: {
     position: "absolute",
@@ -286,5 +370,26 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.caption,
     color: COLORS.primary,
     fontWeight: "600",
+  },
+  unsupportedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: SPACING.lg,
+    backgroundColor: COLORS.card,
+  },
+  unsupportedTitle: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.textMuted,
+    fontWeight: "600",
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  unsupportedText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    marginBottom: SPACING.lg,
+    lineHeight: 20,
   },
 });

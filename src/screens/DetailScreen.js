@@ -30,6 +30,7 @@ import {
   TYPOGRAPHY,
   SHADOWS,
 } from "../constants/theme";
+import { PriceChart } from "../components/PriceChart";
 
 const { width } = Dimensions.get("window");
 
@@ -196,6 +197,14 @@ export const DetailScreen = ({ route, navigation }) => {
               .replace(/<br>/g, "\n")
               .replace(/<br\/>/g, "\n")}
           </Text>
+        )}
+
+        {/* Price Chart with History */}
+        {basePrice && basePrice.marketHashName && (
+          <PriceChart
+            marketHashName={basePrice.marketHashName}
+            currentPrice={basePrice.avg}
+          />
         )}
 
         {/* Price Details Toggle */}

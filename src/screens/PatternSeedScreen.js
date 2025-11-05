@@ -114,13 +114,17 @@ export const PatternSeedScreen = ({ route, navigation }) => {
         setCurrentImage(seedImage);
         setView3D(false);
       } else {
-        // No seed-specific image available, fall back to 3D viewer
-        console.log("No seed-specific image, using 3D viewer");
-        setView3D(true);
+        // No seed-specific image available, use 2D fallback
+        console.log(
+          "No seed-specific image available, using original skin image"
+        );
+        setCurrentImage(skinImage);
+        setView3D(false);
       }
     } catch (error) {
       console.error("Error loading seed image:", error);
       setCurrentImage(skinImage); // Fallback to original
+      setView3D(false);
     } finally {
       setLoading(false);
     }
@@ -133,7 +137,13 @@ export const PatternSeedScreen = ({ route, navigation }) => {
 
   const toggle3DView = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setView3D(!view3D);
+    const newView3D = !view3D;
+    console.log(`Toggling 3D view: ${view3D} -> ${newView3D}`);
+    if (newView3D && selectedSeed) {
+      const url = generate3DViewerUrl(skinName, selectedSeed.seed, 0.1);
+      console.log("Generated 3D viewer URL length:", url?.length);
+    }
+    setView3D(newView3D);
   };
 
   const renderSeedItem = ({ item }) => {
@@ -202,7 +212,9 @@ export const PatternSeedScreen = ({ route, navigation }) => {
           colors={[COLORS.card, COLORS.surface]}
           style={styles.imageGradientBg}
         >
-          <View style={[styles.imageContainer, view3D && styles.imageContainer3D]}>
+          <View
+            style={[styles.imageContainer, view3D && styles.imageContainer3D]}
+          >
             {loading ? (
               <ActivityIndicator size="large" color={COLORS.primary} />
             ) : view3D && selectedSeed ? (

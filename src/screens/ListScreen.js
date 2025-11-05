@@ -10,6 +10,7 @@ import {
 import { SearchBar } from "../components/SearchBar";
 import { FilterPanel } from "../components/FilterPanel";
 import { SkinCard } from "../components/SkinCard";
+import { LivePriceIndicator } from "../components/LivePriceIndicator";
 import { useData } from "../context/DataContext";
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from "../constants/theme";
 
@@ -141,6 +142,11 @@ export const ListScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Search and Filter Section */}
       <View style={styles.topSection}>
+        {/* Live Price Indicator */}
+        <View style={styles.livePriceContainer}>
+          <LivePriceIndicator />
+        </View>
+
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <SearchBar
@@ -197,6 +203,11 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  livePriceContainer: {
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    alignItems: "flex-end",
   },
   searchContainer: {
     padding: SPACING.md,
