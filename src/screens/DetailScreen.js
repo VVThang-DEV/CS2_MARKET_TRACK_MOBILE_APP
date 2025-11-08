@@ -207,6 +207,18 @@ export const DetailScreen = ({ route, navigation }) => {
             </View>
           )}
 
+          {/* Phase Badge for Dopplers */}
+          {item.phase && (
+            <View style={[styles.categoryBadge, styles.phaseBadge]}>
+              <Text style={styles.phaseText}>
+                {item.phase === "Ruby" && "🔴 Ruby"}
+                {item.phase === "Sapphire" && "🔵 Sapphire"}
+                {item.phase === "Black Pearl" && "⚫ Black Pearl"}
+                {item.phase.startsWith("Phase") && `💎 ${item.phase}`}
+              </Text>
+            </View>
+          )}
+
           {/* Spacer to push price to the right */}
           <View style={{ flex: 1 }} />
 
@@ -740,6 +752,16 @@ const styles = StyleSheet.create({
   },
   souvenirBadge: {
     backgroundColor: COLORS.accent,
+  },
+  phaseBadge: {
+    backgroundColor: "#8b5cf640",
+    borderColor: "#8b5cf6",
+  },
+  phaseText: {
+    ...TYPOGRAPHY.caption,
+    color: "#8b5cf6",
+    fontWeight: "700",
+    fontSize: 11,
   },
   listSection: {
     marginBottom: SPACING.lg,

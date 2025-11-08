@@ -162,6 +162,32 @@ export const initDatabase = async () => {
     `);
 
     console.log("✅ Database initialized successfully with offline support");
+
+    // Run migrations to add phase columns if they don't exist
+    try {
+      await db.execAsync(`
+        ALTER TABLE items ADD COLUMN phase TEXT;
+      `);
+      console.log("✅ Added phase column");
+    } catch (error) {
+      // Column already exists, ignore
+      if (!error.message.includes("duplicate column")) {
+        console.warn("Phase column migration:", error.message);
+      }
+    }
+
+    try {
+      await db.execAsync(`
+        ALTER TABLE items ADD COLUMN phaseName TEXT;
+      `);
+      console.log("✅ Added phaseName column");
+    } catch (error) {
+      // Column already exists, ignore
+      if (!error.message.includes("duplicate column")) {
+        console.warn("PhaseName column migration:", error.message);
+      }
+    }
+
     return db;
   } catch (error) {
     console.error("❌ Error initializing database:", error);

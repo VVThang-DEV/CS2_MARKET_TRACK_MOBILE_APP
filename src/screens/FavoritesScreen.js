@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { View, FlatList, Text, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { SearchBar } from "../components/SearchBar";
 import { FilterPanel } from "../components/FilterPanel";
 import { SkinCard } from "../components/SkinCard";
@@ -89,10 +90,16 @@ export const FavoritesScreen = ({ navigation }) => {
     if (favoriteItems.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>⭐</Text>
-          <Text style={styles.emptyText}>No favorites yet</Text>
+          <Ionicons
+            name="eye-outline"
+            size={72}
+            color={COLORS.textMuted}
+            style={{ opacity: 0.4 }}
+          />
+          <Text style={styles.emptyText}>Your Watchlist is Empty</Text>
           <Text style={styles.emptySubtext}>
-            Tap the star icon on any skin to add it to your favorites
+            Tap the eye icon on any skin to add it to your watchlist and track
+            price changes
           </Text>
         </View>
       );
@@ -101,7 +108,13 @@ export const FavoritesScreen = ({ navigation }) => {
     if (hasFilters) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No favorites match your filters</Text>
+          <Ionicons
+            name="filter-outline"
+            size={64}
+            color={COLORS.textMuted}
+            style={{ opacity: 0.4 }}
+          />
+          <Text style={styles.emptyText}>No items match your filters</Text>
           <Text style={styles.emptySubtext}>
             Try adjusting your filters or search term
           </Text>
@@ -122,7 +135,7 @@ export const FavoritesScreen = ({ navigation }) => {
             <SearchBar
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search favorites..."
+              placeholder="Search watchlist..."
             />
           </View>
 
@@ -130,9 +143,15 @@ export const FavoritesScreen = ({ navigation }) => {
           <View style={styles.filterContainer}>
             <FilterPanel items={favoriteItems} onFiltersChange={setFilters} />
             <View style={styles.resultBadge}>
+              <Ionicons
+                name="eye"
+                size={14}
+                color={COLORS.primary}
+                style={{ marginRight: 4 }}
+              />
               <Text style={styles.resultCount}>
                 {filteredFavorites.length}{" "}
-                {filteredFavorites.length === 1 ? "favorite" : "favorites"}
+                {filteredFavorites.length === 1 ? "item" : "items"}
               </Text>
             </View>
           </View>
@@ -181,6 +200,8 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   resultBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.background,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
@@ -206,11 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: SPACING.xl,
-  },
-  emptyIcon: {
-    fontSize: 72,
-    marginBottom: SPACING.lg,
-    opacity: 0.4,
+    paddingHorizontal: SPACING.xl * 1.5,
   },
   emptyText: {
     ...TYPOGRAPHY.h2,

@@ -147,7 +147,7 @@ const FavoritesStack = () => {
         name="FavoritesHome"
         component={FavoritesScreen}
         options={{
-          title: "Favorites",
+          title: "Watchlist",
           headerLargeTitle: false,
         }}
       />
@@ -228,7 +228,7 @@ const TabNavigator = () => {
           if (route.name === "List") {
             iconName = focused ? "grid" : "grid-outline";
           } else if (route.name === "Favorites") {
-            iconName = focused ? "star" : "star-outline";
+            iconName = focused ? "eye" : "eye-outline";
           } else if (route.name === "Trends") {
             iconName = focused ? "trending-up" : "trending-up-outline";
           } else if (route.name === "Profile") {
@@ -274,7 +274,7 @@ const TabNavigator = () => {
         name="Favorites"
         component={FavoritesStack}
         options={{
-          title: "Favorites",
+          title: "Watchlist",
         }}
       />
       <Tab.Screen

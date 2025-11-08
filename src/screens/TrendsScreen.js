@@ -33,7 +33,16 @@ export const TrendsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Categories for CS:GO items
-  const categories = ["All", "Knife", "Gloves", "Rifle", "Pistol", "SMG"];
+  const categories = [
+    "All",
+    "Knife",
+    "Gloves",
+    "Rifle",
+    "Pistol",
+    "SMG",
+    "Heavy",
+    "Equipment",
+  ];
 
   useEffect(() => {
     loadTrendingData();
@@ -125,6 +134,11 @@ export const TrendsScreen = ({ navigation }) => {
           {item.itemName || item.name}
         </Text>
         <Text style={styles.topMoverCardWear}>{item.wearName}</Text>
+
+        {/* Phase Display for Dopplers */}
+        {item.phaseDisplay && (
+          <Text style={styles.topMoverPhaseText}>{item.phaseDisplay}</Text>
+        )}
 
         {/* Stats Row */}
         <View style={styles.topMoverStatsRow}>
@@ -232,6 +246,12 @@ export const TrendsScreen = ({ navigation }) => {
                 <Text style={styles.metaDivider}>•</Text>
                 <Ionicons name="stats-chart" size={10} color={COLORS.primary} />
                 <Text style={styles.statTrakText}>ST</Text>
+              </>
+            )}
+            {item.phaseDisplay && (
+              <>
+                <Text style={styles.metaDivider}>•</Text>
+                <Text style={styles.phaseText}>{item.phaseDisplay}</Text>
               </>
             )}
           </View>
@@ -607,7 +627,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   topMoverChangeBox: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: BORDER_RADIUS.sm,
   },
@@ -734,6 +754,20 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 10,
     fontWeight: "700",
+  },
+  phaseText: {
+    ...TYPOGRAPHY.caption,
+    color: "#8b5cf6",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  topMoverPhaseText: {
+    ...TYPOGRAPHY.caption,
+    color: "#8b5cf6",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+    textAlign: "center",
   },
   trendItemRight: {
     alignItems: "flex-end",

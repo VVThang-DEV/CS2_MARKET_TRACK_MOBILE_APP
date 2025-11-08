@@ -63,16 +63,19 @@ export const SkinCard = ({ item, onPress }) => {
           style={styles.imageGradient}
         />
 
-        {/* Favorite Button - Top Right */}
+        {/* Watchlist Button - Top Right */}
         <Pressable
-          style={styles.favoriteButton}
+          style={[
+            styles.favoriteButton,
+            isItemFavorite && styles.favoriteButtonActive,
+          ]}
           onPress={handleFavoritePress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons
-            name={isItemFavorite ? "star" : "star-outline"}
+            name={isItemFavorite ? "eye" : "eye-outline"}
             size={22}
-            color={COLORS.favorite}
+            color={isItemFavorite ? COLORS.primary : COLORS.textMuted}
           />
         </Pressable>
 
@@ -177,6 +180,16 @@ export const SkinCard = ({ item, onPress }) => {
               <Text style={styles.infoText}>{primaryWear}</Text>
             </View>
           )}
+          {item.phase && (
+            <View style={[styles.infoBadge, styles.phaseBadge]}>
+              <Text style={styles.phaseText}>
+                {item.phase === "Ruby" && "🔴"}
+                {item.phase === "Sapphire" && "🔵"}
+                {item.phase === "Black Pearl" && "⚫"}
+                {item.phase.startsWith("Phase") && "💎"} {item.phase}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </Pressable>
@@ -225,6 +238,10 @@ const styles = StyleSheet.create({
     ...SHADOWS.medium,
     borderWidth: 1,
     borderColor: COLORS.border + "80",
+  },
+  favoriteButtonActive: {
+    backgroundColor: COLORS.primary + "25",
+    borderColor: COLORS.primary + "80",
   },
   imageBadges: {
     position: "absolute",
@@ -326,6 +343,16 @@ const styles = StyleSheet.create({
   },
   rarityBadge: {
     backgroundColor: COLORS.card,
+  },
+  phaseBadge: {
+    backgroundColor: "#8b5cf620",
+    borderColor: "#8b5cf640",
+  },
+  phaseText: {
+    ...TYPOGRAPHY.caption,
+    color: "#8b5cf6",
+    fontSize: 10,
+    fontWeight: "700",
   },
   rarityDot: {
     width: 8,

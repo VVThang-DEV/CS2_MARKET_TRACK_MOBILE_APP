@@ -384,27 +384,59 @@ export const getSkinPriceHistoryFromSupabase = async (
       );
     }
 
-    // Fallback to original method if RPC function doesn't exist
+    // Fallback with more aggressive optimization
     const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Query timeout after 15 seconds")),
-        15000
-      )
-    );
+    // Strategy 1: Try to use JSONB operator to extract only needed field
+    // This runs on database side, not client side - MUCH faster
+    try {
+      const { data, error } = await supabase
+        .from("price_snapshots")
+        .select(
+          `
+          timestamp,
+          prices->${marketHashName} as price_data
+        `
+        )
+        .gte("timestamp", cutoffTime)
+        .order("timestamp", { ascending: true })
+        .limit(100) // Limit to last 100 data points
+        .abortSignal(AbortSignal.timeout(10000)); // 10 second timeout
 
-    // Use JSONB path query to extract only the specific item's price
-    // This is MUCH faster than fetching entire prices object
-    const queryPromise = supabase
+      if (!error && data && data.length > 0) {
+        const history = data
+          .map((snapshot) => {
+            const priceInfo = snapshot.price_data;
+            if (!priceInfo) return null;
+
+            return {
+              date: new Date(snapshot.timestamp),
+              timestamp: snapshot.timestamp,
+              price: priceInfo?.price || priceInfo?.avg || 0,
+            };
+          })
+          .filter((item) => item !== null && item.price > 0);
+
+        if (history.length > 0) {
+          console.log(
+            `✅ Retrieved ${history.length} price points for ${marketHashName} from Supabase (JSONB operator)`
+          );
+          return history;
+        }
+      }
+    } catch (jsonbError) {
+      console.warn("⚠️ JSONB query failed:", jsonbError.message);
+    }
+
+    // Strategy 2: Fetch fewer snapshots with smaller limit
+    console.log("⚠️ Using minimal fallback query...");
+    const { data, error } = await supabase
       .from("price_snapshots")
       .select("timestamp, prices")
       .gte("timestamp", cutoffTime)
       .order("timestamp", { ascending: true })
-      .limit(200); // Increased limit for fallback
-
-    const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      .limit(50) // Reduced from 200 to 50 to prevent timeout
+      .abortSignal(AbortSignal.timeout(8000)); // 8 second timeout
 
     if (error) throw error;
 
@@ -423,12 +455,17 @@ export const getSkinPriceHistoryFromSupabase = async (
       .filter((item) => item !== null && item.price > 0);
 
     console.log(
-      `✅ Retrieved ${history.length} price points for ${marketHashName} from Supabase (fallback)`
+      `✅ Retrieved ${history.length} price points for ${marketHashName} from Supabase (minimal fallback)`
     );
     return history;
   } catch (error) {
-    console.error("❌ Error getting price history from Supabase:", error);
-    // Return empty array instead of throwing to allow fallback to local storage
+    // Check if it's a timeout error
+    if (error.message?.includes("timeout") || error.code === "57014") {
+      console.warn("⚠️ Supabase query timeout - falling back to local storage");
+    } else {
+      console.error("❌ Error getting price history from Supabase:", error);
+    }
+    // Return empty array to trigger fallback to local storage
     return [];
   }
 };

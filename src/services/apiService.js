@@ -42,12 +42,13 @@ export const fetchSkinsFromAPI = async () => {
     console.log("🔍 Fetching skins from bymykel API...");
 
     // Try multiple endpoints in order of preference
-    // Using skins_not_grouped.json first because it has phase data for Dopplers
+    // Using skins.json (grouped) for trending to get ~2,013 unique skins
+    // Phase data will be fetched separately from ungrouped API
     const endpoints = [
-      `${RAW_GITHUB_URL}/skins_not_grouped.json`, // Has phase info for Dopplers!
-      `${API_BASE_URL}/skins_not_grouped.json`,
-      `${RAW_GITHUB_URL}/skins.json`, // Fallback to grouped
+      `${RAW_GITHUB_URL}/skins.json`, // Grouped API for unique skins
       `${API_BASE_URL}/skins.json`,
+      `${RAW_GITHUB_URL}/skins_not_grouped.json`, // Fallback
+      `${API_BASE_URL}/skins_not_grouped.json`,
     ];
 
     let lastError;
@@ -74,23 +75,37 @@ export const fetchSkinsFromAPI = async () => {
           });
         }
 
-        // Filter to only weapons, knives, and gloves (exclude stickers, crates, etc.)
-        const validCategories = [
-          "Pistol",
-          "Rifle",
-          "SMG",
-          "Shotgun",
-          "Machinegun",
-          "Sniper Rifle",
-          "Knife",
-          "Gloves",
+        // Filter to ONLY exclude non-weapon items (stickers, cases, agents, etc.)
+        // Accept ALL weapons/knives/gloves regardless of count
+        const excludedCategories = [
+          "Sticker",
+          "Graffiti",
+          "Patch",
+          "Agent",
+          "Music Kit",
+          "Container",
+          "Tool",
+          "Key",
+          "Pass",
+          "Gift",
+          "Tag",
         ];
 
         const filteredSkins = data.filter((skin) => {
           const category = skin.category?.name;
-          const hasWeapon =
-            skin.weapon?.name || category === "Knife" || category === "Gloves";
-          return validCategories.includes(category) && hasWeapon;
+
+          // Reject if it's in the excluded list
+          if (excludedCategories.includes(category)) {
+            return false;
+          }
+
+          // Accept if it's a weapon category (Pistol, Rifle, SMG, etc.)
+          // OR if it has a weapon property (means it's a gun skin)
+          // OR if it's Knives/Gloves
+          const isWeapon =
+            skin.weapon?.name || category === "Knives" || category === "Gloves";
+
+          return isWeapon;
         });
 
         console.log(

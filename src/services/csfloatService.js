@@ -6,6 +6,60 @@ import { CSFLOAT_API_KEY } from "@env";
 import { fetchSkinsFromAPI } from "./apiService";
 
 const CSFLOAT_PRICE_API = "https://csfloat.com/api/v1/listings/price-list";
+const UNGROUPED_API_URL =
+  "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins_not_grouped.json";
+
+/**
+ * Fetch phase data from ungrouped API for Doppler items
+ * @returns {Promise<Object>} Map of base skin name to phases array
+ */
+async function fetchPhaseData() {
+  try {
+    console.log("🔮 Fetching Doppler phase data from ungrouped API...");
+    const response = await fetch(UNGROUPED_API_URL);
+    const data = await response.json();
+
+    // Build a map of skin phases
+    // Key: base name (e.g., "★ Bayonet | Doppler")
+    // Value: { phases: Set of phases, items: array of phase items }
+    const phaseMap = {};
+
+    data.forEach((skin) => {
+      if (skin.pattern?.name === "Doppler" && skin.phase) {
+        // Extract base name without wear condition
+        const baseName = skin.name?.replace(/\s*\([^)]*\)\s*$/, "").trim();
+
+        if (!phaseMap[baseName]) {
+          phaseMap[baseName] = {
+            phases: new Set(),
+            items: [],
+          };
+        }
+
+        phaseMap[baseName].phases.add(skin.phase);
+        phaseMap[baseName].items.push({
+          phase: skin.phase,
+          wear: skin.wear?.name,
+          marketHashName: skin.market_hash_name,
+        });
+      }
+    });
+
+    // Convert Sets to Arrays for easier use
+    Object.keys(phaseMap).forEach((key) => {
+      phaseMap[key].phases = Array.from(phaseMap[key].phases);
+    });
+
+    console.log(
+      `✅ Found ${Object.keys(phaseMap).length} Doppler skins with phase data`
+    );
+
+    return phaseMap;
+  } catch (error) {
+    console.error("💥 Error fetching phase data:", error);
+    return {};
+  }
+}
 
 /**
  * Fetch all skins data using shared apiService
@@ -16,20 +70,29 @@ async function fetchAllSkinsData() {
   try {
     console.log("🎯 Loading skins data for trending analysis...");
 
-    // Use shared fetchSkinsFromAPI which already filters to weapons/knives/gloves
-    const skins = await fetchSkinsFromAPI();
+    // Fetch both grouped skins and phase data in parallel
+    const [skins, phaseData] = await Promise.all([
+      fetchSkinsFromAPI(), // Now returns grouped API (~2,013 items)
+      fetchPhaseData(),
+    ]);
 
-    console.log(`✅ Loaded ${skins.length} weapon/knife/glove skins`);
+    console.log(`✅ Loaded ${skins.length} unique skins from grouped API`);
 
     // Create a lookup map by market_hash_name
     const skinsMap = {};
     let entriesCreated = 0;
 
     skins.forEach((skin) => {
-      // Keep the ★ prefix for knives/gloves - CSFloat market hash names include it
       const baseName = skin.name || "";
-      const weaponName = skin.weapon?.name || "";
-      const category = skin.category?.name || "";
+
+      if (!baseName) {
+        console.warn("⚠️ Skin missing name:", skin.id);
+        return;
+      }
+
+      // Check if this is a Doppler with phase data
+      const isDoppler = skin.pattern?.name === "Doppler";
+      const phases = isDoppler ? phaseData[baseName]?.phases : null;
 
       // Build market hash name for each wear
       if (skin.wears && skin.wears.length > 0) {
@@ -37,62 +100,81 @@ async function fetchAllSkinsData() {
           const wearName = wear.name;
           const marketHashName = `${baseName} (${wearName})`;
 
-          skinsMap[marketHashName] = {
+          // For Doppler skins, add phase information
+          const skinData = {
             ...skin,
             wearName: wearName,
             image: skin.image,
           };
+
+          if (isDoppler && phases && phases.length > 0) {
+            skinData.phases = phases;
+            skinData.isDoppler = true;
+
+            // Add friendly phase names for display
+            skinData.phaseDisplay = phases
+              .map((p) => {
+                if (p === "Ruby") return "🔴 Ruby";
+                if (p === "Sapphire") return "🔵 Sapphire";
+                if (p === "Black Pearl") return "⚫ Black Pearl";
+                if (p.startsWith("Phase")) return `💎 ${p}`;
+                return p;
+              })
+              .join(", ");
+          }
+
+          skinsMap[marketHashName] = skinData;
           entriesCreated++;
 
           // Also add StatTrak version if available
           if (skin.stattrak) {
             const statTrakName = `StatTrak™ ${marketHashName}`;
-            skinsMap[statTrakName] = {
-              ...skin,
-              wearName: wearName,
-              image: skin.image,
+            const statTrakData = {
+              ...skinData,
               isStatTrak: true,
             };
+            skinsMap[statTrakName] = statTrakData;
             entriesCreated++;
           }
 
           // Add Souvenir version if applicable
           if (skin.souvenir) {
             const souvenirName = `Souvenir ${marketHashName}`;
-            skinsMap[souvenirName] = {
-              ...skin,
-              wearName: wearName,
-              image: skin.image,
+            const souvenirData = {
+              ...skinData,
               isSouvenir: true,
             };
+            skinsMap[souvenirName] = souvenirData;
             entriesCreated++;
           }
         });
       } else {
-        // Items without wears (vanilla knives, gloves without skins, etc.)
-        skinsMap[baseName] = {
+        // Items without wears (vanilla knives, etc.)
+        const skinData = {
           ...skin,
           image: skin.image,
         };
+
+        skinsMap[baseName] = skinData;
         entriesCreated++;
 
         // Add StatTrak version for items without wears
         if (skin.stattrak) {
           skinsMap[`StatTrak™ ${baseName}`] = {
-            ...skin,
-            image: skin.image,
+            ...skinData,
             isStatTrak: true,
           };
           entriesCreated++;
         }
       }
 
-      // Debug first 5 entries to check matching
-      if (entriesCreated <= 15) {
+      // Debug first 10 entries to check matching
+      if (entriesCreated <= 10) {
         const exampleKey = Object.keys(skinsMap)[entriesCreated - 1];
+        const exampleSkin = skinsMap[exampleKey];
         console.log(
-          `📝 Example entry #${entriesCreated}: "${exampleKey}" -> ${
-            weaponName || category
+          `📝 Entry #${entriesCreated}: "${exampleKey}"${
+            exampleSkin.phases ? ` [Phases: ${exampleSkin.phaseDisplay}]` : ""
           }`
         );
       }
@@ -102,8 +184,23 @@ async function fetchAllSkinsData() {
       `✅ Created ${entriesCreated} market hash name entries for price matching`
     );
     console.log(
-      `📊 Sample market names: ${Object.keys(skinsMap).slice(0, 5).join(", ")}`
+      `📊 Sample market names: ${Object.keys(skinsMap).slice(0, 3).join(", ")}`
     );
+
+    // Log category breakdown
+    const categoryCount = {};
+    Object.values(skinsMap).forEach((skin) => {
+      const cat = skin.category?.name || "Unknown";
+      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    });
+    console.log("📊 Category distribution:", categoryCount);
+
+    // Log Doppler count
+    const dopplerCount = Object.values(skinsMap).filter(
+      (s) => s.isDoppler
+    ).length;
+    console.log(`🔮 Doppler items with phase data: ${dopplerCount}`);
+
     return skinsMap;
   } catch (error) {
     console.error("💥 Error fetching skins data:", error);
@@ -390,66 +487,37 @@ export function filterByCategory(listings, category) {
     // Use the category property that was set during processing
     const itemCategory = item.category || "";
     const weaponName = (item.weapon || "").toLowerCase();
+    const itemName = (item.name || "").toLowerCase();
 
     switch (category) {
       case "Knife":
+        // Knives have ★ but exclude gloves explicitly
         return (
-          itemCategory === "Knives" || // ByMykel uses "Knives" (plural)
-          itemCategory === "Knife" ||
-          weaponName.includes("knife") ||
-          weaponName.includes("bayonet") ||
-          weaponName.includes("karambit") ||
-          item.name.includes("★")
+          (itemCategory === "Knives" || itemCategory === "Knife") &&
+          !itemName.includes("glove") &&
+          !itemName.includes("wraps")
         );
       case "Gloves":
         return (
           itemCategory === "Gloves" ||
-          weaponName.includes("gloves") ||
-          weaponName.includes("wraps") ||
-          weaponName.includes("hand wraps")
+          itemName.includes("glove") ||
+          itemName.includes("wraps")
         );
       case "Rifle":
-        return (
-          itemCategory === "Rifle" ||
-          [
-            "ak-47",
-            "m4a4",
-            "m4a1",
-            "awp",
-            "aug",
-            "sg 553",
-            "famas",
-            "galil",
-            "scar-20",
-            "g3sg1",
-          ].some((rifle) => weaponName.includes(rifle))
-        );
+        // API uses "Rifles" (plural) - includes AWP, SSG 08, etc.
+        return itemCategory === "Rifles" || itemCategory === "Rifle";
       case "Pistol":
-        return (
-          itemCategory === "Pistol" ||
-          [
-            "glock",
-            "usp",
-            "p2000",
-            "p250",
-            "five-seven",
-            "tec-9",
-            "cz75",
-            "desert eagle",
-            "dual berettas",
-            "r8 revolver",
-          ].some(
-            (pistol) =>
-              weaponName.includes(pistol) || weaponName.includes("deagle")
-          )
-        );
+        // API uses "Pistols" (plural)
+        return itemCategory === "Pistols" || itemCategory === "Pistol";
       case "SMG":
-        return (
-          itemCategory === "SMG" ||
-          ["mac-10", "mp9", "mp7", "mp5", "ump-45", "p90", "pp-bizon"].some(
-            (smg) => weaponName.includes(smg)
-          )
-        );
+        // API uses "SMGs" (plural)
+        return itemCategory === "SMGs" || itemCategory === "SMG";
+      case "Heavy":
+        // Shotguns + Machineguns (M249, Negev, Nova, XM1014, etc.)
+        return itemCategory === "Heavy";
+      case "Equipment":
+        // Zeus x27 taser skins
+        return itemCategory === "Equipment";
       default:
         return true;
     }
