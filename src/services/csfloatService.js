@@ -26,8 +26,8 @@ async function fetchAllSkinsData() {
     let entriesCreated = 0;
 
     skins.forEach((skin) => {
-      // Get weapon/item name - Remove ★ prefix for knives to match CSFloat format
-      const baseName = (skin.name || "").replace(/^★\s+/, "");
+      // Keep the ★ prefix for knives/gloves - CSFloat market hash names include it
+      const baseName = skin.name || "";
       const weaponName = skin.weapon?.name || "";
       const category = skin.category?.name || "";
 
@@ -157,9 +157,21 @@ export async function fetchTrendingListings(limit = 0) {
 
     // Count how many matched
     const matchedCount = merged.filter((m) => m.skinData !== null).length;
+    const unmatchedCount = merged.length - matchedCount;
     console.log(
-      `🔗 Matched ${matchedCount} out of ${dataArray.length} items with skin data`
+      `🔗 Matched ${matchedCount} out of ${dataArray.length} items with skin data (${unmatchedCount} unmatched)`
     );
+
+    // Debug: Show some unmatched knife/glove items
+    const unmatchedKnivesGloves = merged
+      .filter((m) => m.skinData === null && m.market_hash_name.includes("★"))
+      .slice(0, 5);
+    if (unmatchedKnivesGloves.length > 0) {
+      console.log("⚠️ Sample unmatched knives/gloves:");
+      unmatchedKnivesGloves.forEach((item) =>
+        console.log(`  - ${item.market_hash_name}`)
+      );
+    }
 
     // Sort by quantity (volume) to find most traded/trending items
     let sorted = merged
@@ -382,6 +394,7 @@ export function filterByCategory(listings, category) {
     switch (category) {
       case "Knife":
         return (
+          itemCategory === "Knives" || // ByMykel uses "Knives" (plural)
           itemCategory === "Knife" ||
           weaponName.includes("knife") ||
           weaponName.includes("bayonet") ||

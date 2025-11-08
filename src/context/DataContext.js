@@ -327,6 +327,8 @@ export const DataProvider = ({ children }) => {
           categoryName: category,
           pattern: skin.pattern?.name || "",
           patternName: skin.pattern?.name || "",
+          phase: skin.phase || "",
+          phaseName: skin.phase || "",
           min_float: skin.min_float || 0,
           max_float: skin.max_float || 1,
           rarity: rarityName,

@@ -90,13 +90,13 @@ export const insertItems = async (items) => {
     await db.runAsync(
       `INSERT OR REPLACE INTO items (
         id, _id, name, description, weapon, weaponName, category, categoryName,
-        pattern, patternName, min_float, max_float, rarity, rarityName,
+        pattern, patternName, phase, phaseName, min_float, max_float, rarity, rarityName,
         rarity_color, rarityColor, image, team, isFavorite, stattrak, souvenir,
         wears, availableWears, crates, crateNames, collections, collectionNames,
         createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         COALESCE((SELECT isFavorite FROM items WHERE id = ?), ?),
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.id,
         item._id || item.id,
@@ -108,6 +108,8 @@ export const insertItems = async (items) => {
         item.categoryName || item.category,
         item.pattern || "",
         item.patternName || item.pattern || "",
+        item.phase || "",
+        item.phaseName || item.phase || "",
         item.min_float || 0,
         item.max_float || 1,
         item.rarity || "",

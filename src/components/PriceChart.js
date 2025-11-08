@@ -32,7 +32,12 @@ const WEAR_CONDITIONS = [
   { key: "BS", label: "Battle-Scarred", suffix: "(Battle-Scarred)" },
 ];
 
-export const PriceChart = ({ marketHashName, currentPrice, item }) => {
+export const PriceChart = ({
+  marketHashName,
+  currentPrice,
+  item,
+  onStatTrakChange,
+}) => {
   const [priceHistory, setPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7d"); // 7d, 14d, 30d
@@ -268,7 +273,13 @@ export const PriceChart = ({ marketHashName, currentPrice, item }) => {
           <Text style={styles.statTrakLabel}>StatTrak™</Text>
           <Switch
             value={isStatTrak}
-            onValueChange={setIsStatTrak}
+            onValueChange={(value) => {
+              setIsStatTrak(value);
+              // Notify parent component about StatTrak toggle
+              if (onStatTrakChange) {
+                onStatTrakChange(value);
+              }
+            }}
             trackColor={{ false: COLORS.border, true: COLORS.primary + "60" }}
             thumbColor={isStatTrak ? COLORS.primary : COLORS.textMuted}
           />

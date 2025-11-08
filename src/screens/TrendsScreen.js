@@ -188,8 +188,25 @@ export const TrendsScreen = ({ navigation }) => {
     const isPositive = item.priceChange >= 0;
     const sparklineColor = isPositive ? "#10b981" : "#ef4444";
 
+    // Find matching item in items list for navigation
+    const matchingItem = items.find(
+      (i) => i.name === item.itemName || item.name.includes(i.name)
+    );
+
+    const handlePress = () => {
+      if (matchingItem) {
+        navigation.navigate("Detail", { itemId: matchingItem._id });
+      } else {
+        console.log("No matching item found for:", item.name);
+      }
+    };
+
     return (
-      <TouchableOpacity style={styles.trendItem} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.trendItem}
+        activeOpacity={0.7}
+        onPress={handlePress}
+      >
         {/* Item Image - Smaller */}
         {item.image ? (
           <Image

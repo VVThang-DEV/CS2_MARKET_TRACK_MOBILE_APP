@@ -42,11 +42,12 @@ export const fetchSkinsFromAPI = async () => {
     console.log("🔍 Fetching skins from bymykel API...");
 
     // Try multiple endpoints in order of preference
+    // Using skins_not_grouped.json first because it has phase data for Dopplers
     const endpoints = [
-      `${RAW_GITHUB_URL}/skins.json`,
-      `${API_BASE_URL}/skins.json`,
-      `${RAW_GITHUB_URL}/skins_not_grouped.json`,
+      `${RAW_GITHUB_URL}/skins_not_grouped.json`, // Has phase info for Dopplers!
       `${API_BASE_URL}/skins_not_grouped.json`,
+      `${RAW_GITHUB_URL}/skins.json`, // Fallback to grouped
+      `${API_BASE_URL}/skins.json`,
     ];
 
     let lastError;

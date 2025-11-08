@@ -20,6 +20,8 @@ export const initDatabase = async () => {
         categoryName TEXT,
         pattern TEXT,
         patternName TEXT,
+        phase TEXT,
+        phaseName TEXT,
         min_float REAL DEFAULT 0,
         max_float REAL DEFAULT 1,
         rarity TEXT,

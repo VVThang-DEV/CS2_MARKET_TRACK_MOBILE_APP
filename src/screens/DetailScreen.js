@@ -43,19 +43,34 @@ export const DetailScreen = ({ route, navigation }) => {
   const isItemFavorite = isFavorite(itemId);
 
   const [showPriceDetails, setShowPriceDetails] = useState(false);
-  const [showStatTrak, setShowStatTrak] = useState(item?.stattrak || false);
+  // Always default to normal (non-StatTrak) view
+  const [showStatTrak, setShowStatTrak] = useState(false);
 
-  // Calculate prices for both versions
+  // Calculate prices for both versions (only if item has StatTrak)
   const normalPrice = priceData
     ? getSkinPrice(priceData, item?.name, null, false, item?.souvenir)
     : null;
 
-  const statTrakPrice = priceData
-    ? getSkinPrice(priceData, item?.name, null, true, item?.souvenir)
-    : null;
+  const statTrakPrice =
+    item?.stattrak && priceData
+      ? getSkinPrice(priceData, item?.name, null, true, item?.souvenir)
+      : null;
 
-  // Use selected version for display
-  const basePrice = showStatTrak ? statTrakPrice : normalPrice;
+  // Use selected version for display (fallback to normal if StatTrak not available)
+  const basePrice = showStatTrak && statTrakPrice ? statTrakPrice : normalPrice;
+
+  // Debug price lookups for knives/gloves
+  useEffect(() => {
+    if (item?.name?.includes("★")) {
+      console.log("🔍 DetailScreen knife/glove price lookup:", {
+        itemName: item.name,
+        normalPrice: normalPrice?.avg,
+        statTrakPrice: statTrakPrice?.avg,
+        priceDataLoaded: !!priceData,
+        priceDataSize: priceData ? Object.keys(priceData).length : 0,
+      });
+    }
+  }, [item?.name, normalPrice, statTrakPrice, priceData]);
 
   // Debug crates data
   useEffect(() => {
@@ -200,6 +215,7 @@ export const DetailScreen = ({ route, navigation }) => {
             <View style={[styles.categoryBadge, styles.priceBadge]}>
               <Ionicons name="cash" size={14} color={COLORS.success} />
               <Text style={[styles.categoryText, styles.priceText]}>
+                {basePrice.isApproximate && "~"}
                 {formatPrice(basePrice.avg)}
               </Text>
             </View>
@@ -226,30 +242,13 @@ export const DetailScreen = ({ route, navigation }) => {
           </Text>
         )}
 
-        {/* StatTrak Toggle */}
-        {item.stattrak && (
-          <View style={styles.toggleContainer}>
-            <Text style={styles.toggleLabel}>Show StatTrak™ Price</Text>
-            <Switch
-              value={showStatTrak}
-              onValueChange={(value) => {
-                setShowStatTrak(value);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              trackColor={{ false: COLORS.border, true: COLORS.primary }}
-              thumbColor={
-                showStatTrak ? COLORS.primaryDark : COLORS.textSecondary
-              }
-            />
-          </View>
-        )}
-
-        {/* Price Chart with History */}
+        {/* Price Chart with History - includes StatTrak toggle */}
         {basePrice && basePrice.marketHashName && (
           <PriceChart
             marketHashName={basePrice.marketHashName}
             currentPrice={basePrice.avg}
             item={item}
+            onStatTrakChange={(value) => setShowStatTrak(value)}
           />
         )}
 
@@ -305,6 +304,7 @@ export const DetailScreen = ({ route, navigation }) => {
                   <Text style={styles.wearLabel}>{wearPrice.wear}</Text>
                 </View>
                 <Text style={styles.wearPrice}>
+                  {wearPrice.priceInfo?.isApproximate && "~"}
                   {formatPrice(wearPrice.price)}
                 </Text>
               </View>
