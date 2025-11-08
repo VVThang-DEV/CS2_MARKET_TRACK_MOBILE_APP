@@ -34,7 +34,7 @@ export const UserProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      // Check database for active user
+      // Check database for active user (will return null if DB not ready)
       const activeUser = await getActiveUserProfile();
 
       if (activeUser) {
@@ -53,6 +53,21 @@ export const UserProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("Error checking session:", error);
+      // If database error, still try AsyncStorage fallback
+      try {
+        const storedUser = await AsyncStorage.getItem("steamUser");
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setIsAuthenticated(true);
+          console.log(
+            "✅ Restored user from storage (fallback):",
+            userData.personaName
+          );
+        }
+      } catch (storageError) {
+        console.error("Storage fallback also failed:", storageError);
+      }
     } finally {
       setLoading(false);
     }

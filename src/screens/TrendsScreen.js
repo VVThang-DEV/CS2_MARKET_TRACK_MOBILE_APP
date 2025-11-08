@@ -9,6 +9,7 @@ import {
   ScrollView,
   Image,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useData } from "../context/DataContext";
@@ -25,6 +26,7 @@ import { MiniSparkline } from "../components/MiniSparkline";
 export const TrendsScreen = ({ navigation }) => {
   const { items } = useData();
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [trendingItems, setTrendingItems] = useState([]);
   const [topMovers, setTopMovers] = useState([]);
   const [loadingTrends, setLoadingTrends] = useState(true);
@@ -41,8 +43,8 @@ export const TrendsScreen = ({ navigation }) => {
     try {
       setLoadingTrends(true);
 
-      // Fetch trending listings from CSFloat
-      const listings = await fetchTrendingListings(100);
+      // Fetch ALL trending listings from CSFloat (no limit)
+      const listings = await fetchTrendingListings(0);
 
       // Process listings into trend data
       const processed = processTrendingListings(listings);
@@ -53,7 +55,9 @@ export const TrendsScreen = ({ navigation }) => {
       setTrendingItems(processed);
       setTopMovers(top3);
 
-      console.log(`Loaded ${processed.length} trending items`);
+      console.log(
+        `Loaded ${processed.length} trending items with ${top3.length} top movers`
+      );
     } catch (error) {
       console.error("Error loading trending data:", error);
     } finally {
@@ -67,102 +71,116 @@ export const TrendsScreen = ({ navigation }) => {
     loadTrendingData();
   };
 
-  // Filter by category
+  // Filter by category and search query
   const filteredItems = useMemo(() => {
-    return filterByCategory(trendingItems, selectedCategory);
-  }, [trendingItems, selectedCategory]);
+    let filtered = filterByCategory(trendingItems, selectedCategory);
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.name.toLowerCase().includes(query) ||
+          item.itemName.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [trendingItems, selectedCategory, searchQuery]);
 
   const renderTopMover = ({ item, index }) => {
     const isPositive = item.priceChange >= 0;
-    const rankColors = ["#FFD700", "#C0C0C0", "#CD7F32"]; // Gold, Silver, Bronze
-    const rankGradients = [
-      ["#FFD700", "#FFA500"], // Gold gradient
-      ["#E8E8E8", "#A0A0A0"], // Silver gradient
-      ["#CD7F32", "#8B4513"], // Bronze gradient
-    ];
+    const rankLabels = ["1st", "2nd", "3rd"];
+    const rankColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
 
     return (
-      <TouchableOpacity
-        style={[styles.topMoverContainer, index === 0 && styles.topMoverFirst]}
-        activeOpacity={0.8}
-      >
-        {/* Rank Badge with Glow Effect */}
+      <View style={styles.topMoverCard}>
+        {/* Rank Badge */}
         <View
-          style={[
-            styles.rankBadge,
-            {
-              backgroundColor: rankColors[index],
-              shadowColor: rankColors[index],
-            },
-          ]}
+          style={[styles.rankBadge, { backgroundColor: rankColors[index] }]}
         >
-          <Text style={styles.rankText}>#{index + 1}</Text>
+          <Text style={styles.rankBadgeText}>{rankLabels[index]}</Text>
         </View>
 
-        {/* Massive Percentage Display */}
-        <View
-          style={[
-            styles.percentageDisplay,
-            {
-              backgroundColor: isPositive ? "#10b981" : "#ef4444",
-            },
-          ]}
-        >
-          <Ionicons
-            name={isPositive ? "trending-up" : "trending-down"}
-            size={24}
-            color="#fff"
-          />
-          <Text style={styles.percentageText}>
-            {isPositive ? "+" : ""}
-            {item.priceChange.toFixed(1)}%
-          </Text>
-        </View>
-
-        {/* Item Image with Shadow */}
-        <View style={styles.imageContainer}>
+        {/* Large Centered Image */}
+        <View style={styles.topMoverImageSection}>
           {item.image ? (
             <Image
               source={{ uri: item.image }}
-              style={styles.topMoverImage}
+              style={styles.topMoverLargeImage}
               resizeMode="contain"
             />
           ) : (
-            <View style={styles.placeholderImage}>
+            <View style={styles.topMoverLargeImagePlaceholder}>
               <Ionicons
                 name="image-outline"
-                size={40}
+                size={48}
                 color={COLORS.textMuted}
               />
             </View>
           )}
         </View>
 
-        {/* Item Info */}
-        <View style={styles.topMoverInfo}>
-          <Text style={styles.topMoverName} numberOfLines={2}>
-            {item.itemName || item.name}
-          </Text>
-          <Text style={styles.topMoverWear}>{item.wearName}</Text>
+        {/* Item Name */}
+        <Text style={styles.topMoverCardName} numberOfLines={2}>
+          {item.itemName || item.name}
+        </Text>
+        <Text style={styles.topMoverCardWear}>{item.wearName}</Text>
 
-          {/* Price with Sparkline */}
-          <View style={styles.priceSparklineRow}>
-            <View style={styles.priceColumn}>
-              <Text style={styles.priceValue}>
-                {formatPrice(item.currentPrice)}
+        {/* Stats Row */}
+        <View style={styles.topMoverStatsRow}>
+          {/* Price */}
+          <View style={styles.topMoverStat}>
+            <Text style={styles.topMoverStatLabel}>Price</Text>
+            <Text style={styles.topMoverStatValue}>
+              {formatPrice(item.currentPrice)}
+            </Text>
+          </View>
+
+          {/* Change */}
+          <View style={styles.topMoverStat}>
+            <Text style={styles.topMoverStatLabel}>Change</Text>
+            <View
+              style={[
+                styles.topMoverChangeBox,
+                {
+                  backgroundColor: isPositive ? "#10b98120" : "#ef444420",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.topMoverStatValue,
+                  {
+                    color: isPositive ? "#10b981" : "#ef4444",
+                    fontSize: 16,
+                  },
+                ]}
+              >
+                {isPositive ? "+" : ""}
+                {item.priceChange.toFixed(1)}%
               </Text>
-              <Text style={styles.volumeLabel}>{item.volume} vol</Text>
             </View>
-            <MiniSparkline
-              data={item.priceHistory || []}
-              width={60}
-              height={30}
-              color={isPositive ? "#10b981" : "#ef4444"}
-              strokeWidth={2.5}
-            />
+          </View>
+
+          {/* Volume */}
+          <View style={styles.topMoverStat}>
+            <Text style={styles.topMoverStatLabel}>Volume</Text>
+            <Text style={styles.topMoverStatValue}>{item.volume}</Text>
           </View>
         </View>
-      </TouchableOpacity>
+
+        {/* Sparkline */}
+        <View style={styles.topMoverSparklineSection}>
+          <MiniSparkline
+            data={item.priceHistory || []}
+            width={140}
+            height={50}
+            color={isPositive ? "#10b981" : "#ef4444"}
+            strokeWidth={2.5}
+            showBackground={true}
+          />
+        </View>
+      </View>
     );
   };
 
@@ -171,7 +189,8 @@ export const TrendsScreen = ({ navigation }) => {
     const sparklineColor = isPositive ? "#10b981" : "#ef4444";
 
     return (
-      <View style={styles.trendItem}>
+      <TouchableOpacity style={styles.trendItem} activeOpacity={0.7}>
+        {/* Item Image - Smaller */}
         {item.image ? (
           <Image
             source={{ uri: item.image }}
@@ -180,9 +199,11 @@ export const TrendsScreen = ({ navigation }) => {
           />
         ) : (
           <View style={[styles.trendItemImage, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={24} color={COLORS.textMuted} />
+            <Ionicons name="image-outline" size={20} color={COLORS.textMuted} />
           </View>
         )}
+
+        {/* Item Info */}
         <View style={styles.trendItemLeft}>
           <Text style={styles.trendItemName} numberOfLines={1}>
             {item.itemName || item.name}
@@ -192,7 +213,7 @@ export const TrendsScreen = ({ navigation }) => {
             {item.isStatTrak && (
               <>
                 <Text style={styles.metaDivider}>•</Text>
-                <Ionicons name="stats-chart" size={12} color={COLORS.primary} />
+                <Ionicons name="stats-chart" size={10} color={COLORS.primary} />
                 <Text style={styles.statTrakText}>ST</Text>
               </>
             )}
@@ -200,7 +221,7 @@ export const TrendsScreen = ({ navigation }) => {
           <View style={styles.volumeRow}>
             <Ionicons
               name="layers-outline"
-              size={12}
+              size={10}
               color={COLORS.textMuted}
             />
             <Text style={styles.volumeText}>{item.volume} vol</Text>
@@ -211,13 +232,14 @@ export const TrendsScreen = ({ navigation }) => {
         <View style={styles.sparklineContainer}>
           <MiniSparkline
             data={item.priceHistory || []}
-            width={70}
-            height={35}
+            width={60}
+            height={30}
             color={sparklineColor}
-            strokeWidth={2}
+            strokeWidth={1.5}
           />
         </View>
 
+        {/* Price & Change */}
         <View style={styles.trendItemRight}>
           <Text style={styles.trendItemPrice}>
             {formatPrice(item.currentPrice)}
@@ -227,14 +249,14 @@ export const TrendsScreen = ({ navigation }) => {
               styles.changeIndicator,
               {
                 backgroundColor: isPositive
-                  ? "#10b981" + "20"
-                  : "#ef4444" + "20",
+                  ? "#10b981" + "15"
+                  : "#ef4444" + "15",
               },
             ]}
           >
             <Ionicons
               name={isPositive ? "arrow-up" : "arrow-down"}
-              size={14}
+              size={12}
               color={isPositive ? "#10b981" : "#ef4444"}
             />
             <Text
@@ -248,7 +270,7 @@ export const TrendsScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
   if (loadingTrends && !refreshing) {
@@ -265,16 +287,41 @@ export const TrendsScreen = ({ navigation }) => {
       <FlatList
         ListHeaderComponent={
           <>
+            {/* Search Bar */}
+            <View style={styles.searchSection}>
+              <View style={styles.searchBar}>
+                <Ionicons name="search" size={20} color={COLORS.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search skins..."
+                  placeholderTextColor={COLORS.textMuted}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={COLORS.textMuted}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             {/* Top Movers Header */}
             <View style={styles.topMoversSection}>
               <View style={styles.sectionHeader}>
-                <Ionicons name="flame" size={24} color="#ff6b35" />
-                <Text style={styles.sectionTitle}>Top 3 Movers</Text>
+                <Ionicons name="flame" size={20} color="#ff6b35" />
+                <Text style={styles.sectionTitle}>Top 3 Biggest Movers</Text>
                 <View style={styles.liveIndicator}>
                   <View style={styles.liveDot} />
                   <Text style={styles.liveText}>Live</Text>
                 </View>
               </View>
+
+              {/* Horizontal Scroll of Large Cards */}
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -372,166 +419,184 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: SPACING.md,
   },
+  searchSection: {
+    backgroundColor: COLORS.surface,
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  searchInput: {
+    flex: 1,
+    ...TYPOGRAPHY.body,
+    color: COLORS.text,
+    padding: 0,
+  },
   topMoversSection: {
     backgroundColor: COLORS.surface,
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: SPACING.sm,
+    gap: SPACING.xs,
     paddingHorizontal: SPACING.md,
     marginBottom: SPACING.md,
   },
   sectionTitle: {
     ...TYPOGRAPHY.h3,
     color: COLORS.text,
-    fontWeight: "700",
+    fontWeight: "600",
+    fontSize: 15,
     flex: 1,
   },
   liveIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: "#10b981" + "20",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "#10b981" + "15",
     borderRadius: BORDER_RADIUS.full,
   },
   liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: "#10b981",
   },
   liveText: {
     ...TYPOGRAPHY.caption,
     color: "#10b981",
-    fontWeight: "700",
-    fontSize: 11,
+    fontWeight: "600",
+    fontSize: 10,
   },
   topMoversScroll: {
     paddingHorizontal: SPACING.md,
     gap: SPACING.md,
   },
-  topMoverContainer: {
-    width: 180,
+  topMoverCard: {
+    width: 200,
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.md,
-    position: "relative",
+    padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 6,
-  },
-  topMoverFirst: {
-    width: 200,
-    borderWidth: 2,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 10,
+    elevation: 4,
+    position: "relative",
   },
   rankBadge: {
     position: "absolute",
-    top: -8,
-    left: -8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    top: -10,
+    right: -10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 3,
+    borderColor: COLORS.card,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
     zIndex: 10,
   },
-  rankText: {
+  rankBadgeText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "900",
     textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  percentageDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: BORDER_RADIUS.lg,
-    marginBottom: SPACING.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  percentageText: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  imageContainer: {
+  topMoverImageSection: {
     width: "100%",
-    height: 90,
-    marginBottom: SPACING.md,
+    height: 120,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: SPACING.md,
   },
-  topMoverImage: {
+  topMoverLargeImage: {
     width: "100%",
     height: "100%",
   },
-  topMoverInfo: {
-    gap: SPACING.xs,
+  topMoverLargeImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  topMoverName: {
+  topMoverCardName: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text,
+    fontWeight: "700",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 4,
+    minHeight: 36,
+  },
+  topMoverCardWear: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    fontSize: 11,
+    textAlign: "center",
+    marginBottom: SPACING.md,
+  },
+  topMoverStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border + "40",
+  },
+  topMoverStat: {
+    flex: 1,
+    alignItems: "center",
+  },
+  topMoverStatLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    fontSize: 9,
+    marginBottom: 4,
+  },
+  topMoverStatValue: {
     ...TYPOGRAPHY.body,
     color: COLORS.text,
     fontWeight: "700",
     fontSize: 13,
-    lineHeight: 16,
-    height: 32,
   },
-  topMoverWear: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textMuted,
-    fontSize: 10,
-    marginBottom: 2,
+  topMoverChangeBox: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.sm,
   },
-  priceSparklineRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  topMoverSparklineSection: {
+    width: "100%",
     alignItems: "center",
-    paddingTop: SPACING.xs,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border + "40",
-  },
-  priceColumn: {
-    gap: 2,
-  },
-  priceValue: {
-    ...TYPOGRAPHY.body,
-    color: COLORS.text,
-    fontWeight: "800",
-    fontSize: 16,
-  },
-  volumeLabel: {
-    ...TYPOGRAPHY.caption,
-    color: COLORS.textMuted,
-    fontSize: 9,
+    paddingTop: SPACING.sm,
   },
   categorySection: {
     backgroundColor: COLORS.surface,
@@ -580,100 +645,100 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   listContent: {
-    padding: SPACING.md,
+    paddingBottom: SPACING.md,
   },
   trendItem: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.card,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border + "30",
+    gap: SPACING.sm,
   },
   trendItemImage: {
-    width: 60,
-    height: 60,
-    marginRight: SPACING.md,
+    width: 50,
+    height: 50,
   },
   placeholderImage: {
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.sm,
     alignItems: "center",
     justifyContent: "center",
   },
   trendItemLeft: {
     flex: 1,
-    marginRight: SPACING.md,
   },
   trendItemName: {
     ...TYPOGRAPHY.body,
     color: COLORS.text,
     fontWeight: "600",
-    marginBottom: 4,
+    fontSize: 13,
+    marginBottom: 2,
   },
   trendItemMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
+    gap: 4,
+    marginBottom: 3,
   },
   trendItemWear: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textMuted,
-    fontSize: 11,
+    fontSize: 10,
   },
   volumeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
   },
   volumeText: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textMuted,
-    fontSize: 10,
+    fontSize: 9,
   },
   sparklineContainer: {
-    width: 70,
-    height: 35,
-    marginRight: SPACING.md,
+    width: 60,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
   },
   metaDivider: {
     ...TYPOGRAPHY.caption,
     color: COLORS.textMuted,
+    fontSize: 10,
   },
   statTrakText: {
     ...TYPOGRAPHY.caption,
     color: COLORS.primary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   trendItemRight: {
     alignItems: "flex-end",
+    gap: 4,
   },
   trendItemPrice: {
     ...TYPOGRAPHY.body,
     color: COLORS.text,
     fontWeight: "700",
-    marginBottom: SPACING.xs,
+    fontSize: 13,
   },
   changeIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.md,
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.sm,
   },
   changeText: {
     ...TYPOGRAPHY.caption,
     fontWeight: "700",
-    fontSize: 11,
+    fontSize: 10,
   },
   emptyContainer: {
     alignItems: "center",

@@ -66,6 +66,11 @@ export async function getActiveUserProfile() {
 
     return result || null;
   } catch (error) {
+    // If database is not initialized, return null gracefully
+    if (error.message && error.message.includes("Database not initialized")) {
+      console.log("Database not initialized yet, skipping user profile check");
+      return null;
+    }
     console.error("Error getting active user profile:", error);
     return null;
   }

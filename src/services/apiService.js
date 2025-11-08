@@ -1,4 +1,6 @@
 const API_BASE_URL = "https://bymykel.github.io/CSGO-API/api/en";
+const RAW_GITHUB_URL =
+  "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en";
 const FETCH_TIMEOUT = 30000; // 30 seconds timeout
 
 /**
@@ -32,46 +34,80 @@ const fetchWithTimeout = async (url, timeout = FETCH_TIMEOUT) => {
 
 /**
  * Fetches CS:GO skins data from the public API
+ * Uses multiple fallback endpoints
  * @returns {Promise<Array>} Array of skin objects with proper structure
  */
 export const fetchSkinsFromAPI = async () => {
   try {
-    console.log("Fetching skins from API...");
+    console.log("🔍 Fetching skins from bymykel API...");
+
+    // Try multiple endpoints in order of preference
     const endpoints = [
+      `${RAW_GITHUB_URL}/skins.json`,
       `${API_BASE_URL}/skins.json`,
-      "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json",
+      `${RAW_GITHUB_URL}/skins_not_grouped.json`,
+      `${API_BASE_URL}/skins_not_grouped.json`,
     ];
 
     let lastError;
     for (const endpoint of endpoints) {
       try {
-        console.log(`Trying endpoint: ${endpoint}`);
+        console.log(`📡 Trying endpoint: ${endpoint}`);
         const response = await fetchWithTimeout(endpoint);
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
-        console.log(`Successfully fetched ${data.length} skins from API`);
+        console.log(`✅ Successfully fetched ${data.length} skins from API`);
 
         // Log first item to debug structure
         if (data.length > 0) {
-          console.log("Sample skin data:", JSON.stringify(data[0], null, 2));
+          console.log("📦 Sample skin structure:", {
+            id: data[0].id,
+            name: data[0].name,
+            category: data[0].category?.name,
+            weapon: data[0].weapon?.name,
+            hasImage: !!data[0].image,
+          });
         }
 
-        // Return raw API data - let DataContext handle categorization
-        return data;
+        // Filter to only weapons, knives, and gloves (exclude stickers, crates, etc.)
+        const validCategories = [
+          "Pistol",
+          "Rifle",
+          "SMG",
+          "Shotgun",
+          "Machinegun",
+          "Sniper Rifle",
+          "Knife",
+          "Gloves",
+        ];
+
+        const filteredSkins = data.filter((skin) => {
+          const category = skin.category?.name;
+          const hasWeapon =
+            skin.weapon?.name || category === "Knife" || category === "Gloves";
+          return validCategories.includes(category) && hasWeapon;
+        });
+
+        console.log(
+          `🎯 Filtered to ${filteredSkins.length} weapon/knife/glove skins (from ${data.length} total items)`
+        );
+
+        // Return filtered data
+        return filteredSkins;
       } catch (error) {
-        console.log(`Failed to fetch from ${endpoint}:`, error.message);
+        console.log(`❌ Failed: ${endpoint} - ${error.message}`);
         lastError = error;
       }
     }
 
-    console.error("All API endpoints failed. Last error:", lastError);
+    console.error("❌ All API endpoints failed. Last error:", lastError);
     throw lastError;
   } catch (error) {
-    console.error("Error fetching skins from API:", error);
+    console.error("💥 Error fetching skins from API:", error);
     throw error;
   }
 };
@@ -82,6 +118,7 @@ export const fetchSkinsFromAPI = async () => {
  */
 export const syncDataToRealm = async (realm) => {
   try {
+    console.log("🔄 Syncing weapon/knife/glove data to RealmDB...");
     const apiData = await fetchSkinsFromAPI();
 
     realm.write(() => {
@@ -102,7 +139,7 @@ export const syncDataToRealm = async (realm) => {
       apiData.forEach((skin) => {
         // Determine category from weapon type
         const category = determineCategory(
-          skin.weapon?.name || skin.category || "Other"
+          skin.weapon?.name || skin.category?.name || "Other"
         );
 
         const itemData = {
@@ -126,10 +163,12 @@ export const syncDataToRealm = async (realm) => {
       });
     });
 
-    console.log(`Synced ${apiData.length} items to RealmDB`);
+    console.log(
+      `✅ Synced ${apiData.length} weapon/knife/glove items to RealmDB`
+    );
     return apiData.length;
   } catch (error) {
-    console.error("Error syncing data to Realm:", error);
+    console.error("💥 Error syncing data to Realm:", error);
     throw error;
   }
 };

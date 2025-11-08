@@ -3,28 +3,28 @@
  */
 
 import { CSFLOAT_API_KEY } from "@env";
+import { fetchSkinsFromAPI } from "./apiService";
 
 const CSFLOAT_PRICE_API = "https://csfloat.com/api/v1/listings/price-list";
-const SKINS_API = "https://bymykel.github.io/CSGO-API/api/en/skins.json";
 
 /**
- * Fetch all skins data from GitHub API
+ * Fetch all skins data using shared apiService
+ * Only includes weapons, knives, and gloves (no stickers, crates, agents, etc.)
  * @returns {Promise<Object>} Map of market_hash_name to skin data
  */
 async function fetchAllSkinsData() {
   try {
-    console.log("Fetching skins data from GitHub API...");
-    const response = await fetch(SKINS_API);
+    console.log("🎯 Loading skins data for trending analysis...");
 
-    if (!response.ok) {
-      throw new Error(`Skins API error: ${response.status}`);
-    }
+    // Use shared fetchSkinsFromAPI which already filters to weapons/knives/gloves
+    const skins = await fetchSkinsFromAPI();
 
-    const skins = await response.json();
-    console.log(`✅ Loaded ${skins.length} skins from GitHub API`);
+    console.log(`✅ Loaded ${skins.length} weapon/knife/glove skins`);
 
     // Create a lookup map by market_hash_name
     const skinsMap = {};
+    let entriesCreated = 0;
+
     skins.forEach((skin) => {
       // Build market hash name for each wear
       if (skin.wears && skin.wears.length > 0) {
@@ -36,6 +36,7 @@ async function fetchAllSkinsData() {
             wearName: wearName,
             image: skin.image,
           };
+          entriesCreated++;
 
           // Also add StatTrak version if available
           if (skin.stattrak) {
@@ -46,20 +47,35 @@ async function fetchAllSkinsData() {
               image: skin.image,
               isStatTrak: true,
             };
+            entriesCreated++;
           }
         });
       } else {
-        // Items without wears
+        // Items without wears (knives, gloves, etc.)
         skinsMap[skin.name] = {
           ...skin,
           image: skin.image,
         };
+        entriesCreated++;
+
+        // Add StatTrak version for items without wears
+        if (skin.stattrak) {
+          skinsMap[`StatTrak™ ${skin.name}`] = {
+            ...skin,
+            image: skin.image,
+            isStatTrak: true,
+          };
+          entriesCreated++;
+        }
       }
     });
 
+    console.log(
+      `✅ Created ${entriesCreated} market hash name entries for price matching`
+    );
     return skinsMap;
   } catch (error) {
-    console.error("Error fetching skins data:", error);
+    console.error("💥 Error fetching skins data:", error);
     return {};
   }
 }
@@ -67,12 +83,14 @@ async function fetchAllSkinsData() {
 /**
  * Fetch trending items from CSFloat price list
  * Uses the same endpoint as priceService but processes it for trending analysis
- * @param {number} limit - Number of trending items to return
+ * @param {number} limit - Number of trending items to return (0 = all items)
  * @returns {Promise<Array>} Array of trending items
  */
-export async function fetchTrendingListings(limit = 100) {
+export async function fetchTrendingListings(limit = 0) {
   try {
-    console.log("Fetching price data from CSFloat for trending analysis...");
+    console.log(
+      "Fetching ALL price data from CSFloat for trending analysis..."
+    );
 
     // Fetch both price data and skins data in parallel
     const [priceResponse, skinsMap] = await Promise.all([
@@ -101,10 +119,14 @@ export async function fetchTrendingListings(limit = 100) {
     }));
 
     // Sort by quantity (volume) to find most traded/trending items
-    const sorted = merged
+    let sorted = merged
       .filter((item) => item.qty > 0 && item.min_price > 0)
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, limit);
+      .sort((a, b) => b.qty - a.qty);
+
+    // Only limit if specified (0 means return all)
+    if (limit > 0) {
+      sorted = sorted.slice(0, limit);
+    }
 
     console.log(`✅ Processed ${sorted.length} trending items with skin data`);
     return sorted;
@@ -156,14 +178,25 @@ function generatePriceHistory(currentPrice, priceChange, points = 7) {
 
 /**
  * Process price list into trending items with price analysis
+ * Only includes items that match our skin database (weapons/knives/gloves)
  * @param {Array} priceListData - Raw CSFloat price list data
  * @returns {Array} Processed trending items
  */
 export function processTrendingListings(priceListData) {
   if (!priceListData || priceListData.length === 0) return [];
 
-  return priceListData
+  let itemsWithImages = 0;
+  let itemsWithoutImages = 0;
+  let itemsFiltered = 0;
+
+  const processed = priceListData
     .map((item) => {
+      // Skip items without skin data (not in our filtered list)
+      if (!item.skinData) {
+        itemsFiltered++;
+        return null;
+      }
+
       const currentPrice = item.min_price / 100; // Convert cents to dollars
       const maxPrice = item.max_price ? item.max_price / 100 : currentPrice;
       const avgPrice = (currentPrice + maxPrice) / 2;
@@ -190,6 +223,14 @@ export function processTrendingListings(priceListData) {
 
       // Get item name without wear
       const itemName = marketHashName.replace(/\s*\(.*?\)$/, "");
+
+      // Track image availability
+      const hasImage = !!item.skinData?.image;
+      if (hasImage) {
+        itemsWithImages++;
+      } else {
+        itemsWithoutImages++;
+      }
 
       return {
         id: `${item.market_hash_name}-${item.qty}`,
@@ -219,13 +260,21 @@ export function processTrendingListings(priceListData) {
         priceHistory: priceHistory, // Add price history for sparkline
       };
     })
-    .filter((item) => item.currentPrice > 0)
+    .filter((item) => item !== null && item.currentPrice > 0) // Remove null items
     .sort((a, b) => {
       // Sort by combination of price change and volume
       const scoreA = a.priceChangeAbs * Math.log(a.volume + 1);
       const scoreB = b.priceChangeAbs * Math.log(b.volume + 1);
       return scoreB - scoreA;
     });
+
+  console.log(
+    `📊 Processed ${processed.length} weapon/knife/glove items (filtered out ${itemsFiltered} non-skin items)`
+  );
+  console.log(
+    `📊 Image stats: ${itemsWithImages} with images, ${itemsWithoutImages} without images`
+  );
+  return processed;
 }
 /**
  * Get top movers (biggest price changes)
