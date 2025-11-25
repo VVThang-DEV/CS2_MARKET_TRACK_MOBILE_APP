@@ -8,7 +8,12 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  Modal,
+  Pressable,
+  Animated,
+  Platform,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { LineChart } from "react-native-gifted-charts";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -46,6 +51,9 @@ export const PriceChart = ({
   const [chartWidth, setChartWidth] = useState(1);
   const [displayPrice, setDisplayPrice] = useState(currentPrice);
   const scrollViewRef = useRef(null);
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(300)).current;
 
   // Determine available wears from item data
   const availableWears =
@@ -262,17 +270,48 @@ export const PriceChart = ({
   // Prepare data for chart with safety checks
   const chartData = priceHistory
     .filter((item) => item && typeof item.price === "number" && item.price > 0)
-    .map((item, index) => ({
-      value: item.price,
-      label:
-        index === 0 || index === priceHistory.length - 1
-          ? new Date(item.date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })
-          : "",
-      labelTextStyle: { color: COLORS.textMuted, fontSize: 10 },
-    }));
+    .map((item, index) => {
+      const date = new Date(item.date);
+      return {
+        value: item.price,
+        dataPointText: formatPrice(item.price),
+        label:
+          index === 0 || index === priceHistory.length - 1
+            ? date.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })
+            : "",
+        labelTextStyle: { color: COLORS.textMuted, fontSize: 10 },
+        // Store full date info for tooltip
+        fullDate: date,
+        timestamp: item.timestamp,
+        onPress: () => {
+          // Haptic feedback for native feel
+          if (Platform.OS === "ios") {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          } else {
+            Haptics.selectionAsync();
+          }
+
+          setSelectedPoint({
+            price: item.price,
+            date: date,
+            timestamp: item.timestamp,
+          });
+          setTooltipVisible(true);
+
+          // Slide up animation
+          slideAnim.setValue(300);
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+        },
+      };
+    });
 
   const lineColor =
     priceChange.trend === "up"
@@ -443,26 +482,37 @@ export const PriceChart = ({
         </View>
       </View>
 
-      {/* Chart with Horizontal Scroll for Zoom */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={true}
-        ref={scrollViewRef}
-        style={styles.chartScrollContainer}
-        contentContainerStyle={styles.chartScrollContent}
-      >
-        <View style={[styles.chartContainer, { width: chartWidth }]}>
+      {/* Chart Container - Non-scrollable to prevent conflicts */}
+      <View style={styles.chartWrapper}>
+        <View
+          style={[
+            styles.chartContainer,
+            { width: Math.max(chartWidth, width - SPACING.xl * 4 - 40) },
+          ]}
+        >
           {chartData.length >= 2 ? (
             <LineChart
-              data={chartData.map((item, index) => ({
-                value: item.value,
-                label:
-                  index % Math.ceil(chartData.length / 5) === 0
-                    ? item.label
-                    : "",
-                labelTextStyle: { color: COLORS.textMuted, fontSize: 10 },
-              }))}
-              width={chartWidth}
+              data={chartData.map((item, index) => {
+                // Show more date labels for better UX
+                const showLabel =
+                  index === 0 ||
+                  index === chartData.length - 1 ||
+                  index % Math.max(1, Math.floor(chartData.length / 6)) === 0;
+
+                return {
+                  value: item.value,
+                  label:
+                    showLabel && item.fullDate
+                      ? item.fullDate.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "",
+                  labelTextStyle: { color: COLORS.textMuted, fontSize: 9 },
+                  onPress: item.onPress,
+                };
+              })}
+              width={Math.max(chartWidth, width - SPACING.xl * 4 - 40)}
               height={200}
               color={
                 calculatePriceChange(priceHistory).trend === "up"
@@ -490,13 +540,16 @@ export const PriceChart = ({
               endOpacity={0.1}
               initialSpacing={15}
               endSpacing={15}
-              spacing={Math.max(20, chartWidth / chartData.length)}
+              spacing={Math.max(
+                25,
+                (width - SPACING.xl * 4 - 70) / chartData.length
+              )}
               noOfSections={5}
               yAxisColor={COLORS.border}
               xAxisColor={COLORS.border}
               yAxisTextStyle={{ color: COLORS.textMuted, fontSize: 9 }}
               yAxisOffset={getPriceStats(priceHistory).min * 0.95}
-              hideDataPoints={chartData.length > 20}
+              hideDataPoints={false}
               dataPointsColor={
                 calculatePriceChange(priceHistory).trend === "up"
                   ? "#10b981"
@@ -504,7 +557,7 @@ export const PriceChart = ({
                   ? "#ef4444"
                   : COLORS.primary
               }
-              dataPointsRadius={3}
+              dataPointsRadius={4}
               curved
               isAnimated
               animationDuration={800}
@@ -512,10 +565,15 @@ export const PriceChart = ({
               hideRules={false}
               rulesColor={COLORS.border + "20"}
               rulesType="solid"
+              onDataPointClick={(item, index) => {
+                if (chartData[index] && chartData[index].onPress) {
+                  chartData[index].onPress();
+                }
+              }}
             />
           ) : null}
         </View>
-      </ScrollView>
+      </View>
 
       {/* Stats */}
       {chartData.length >= 2 && (
@@ -550,9 +608,110 @@ export const PriceChart = ({
           <Text style={[styles.noticeText, { color: "#10b981" }]}>
             Real-time price data • {priceHistory.length} data points tracked
           </Text>
-          <Text style={styles.zoomHint}>← Swipe to zoom chart →</Text>
+          <Text style={styles.zoomHint}>
+            💡 Tap any point to see date & price
+          </Text>
         </View>
       )}
+
+      {/* Date Tooltip Modal - Native Bottom Sheet Style */}
+      <Modal
+        visible={tooltipVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          Animated.timing(slideAnim, {
+            toValue: 300,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => setTooltipVisible(false));
+        }}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            Animated.timing(slideAnim, {
+              toValue: 300,
+              duration: 200,
+              useNativeDriver: true,
+            }).start(() => setTooltipVisible(false));
+          }}
+        >
+          <Animated.View
+            style={[
+              styles.tooltipContainer,
+              {
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            {/* Handle bar for native feel */}
+            <View style={styles.handleBar} />
+            {selectedPoint && (
+              <>
+                {/* Price - Hero element */}
+                <View style={styles.tooltipPriceSection}>
+                  <Text style={styles.tooltipPriceLabel}>
+                    Price at this point
+                  </Text>
+                  <Text style={styles.tooltipPrice}>
+                    {formatPrice(selectedPoint.price)}
+                  </Text>
+                </View>
+
+                {/* Date & Time Info */}
+                <View style={styles.tooltipInfoSection}>
+                  <View style={styles.tooltipInfoRow}>
+                    <View style={styles.tooltipIconWrapper}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={16}
+                        color={COLORS.primary}
+                      />
+                    </View>
+                    <View style={styles.tooltipInfoText}>
+                      <Text style={styles.tooltipInfoLabel}>Date</Text>
+                      <Text style={styles.tooltipInfoValue}>
+                        {selectedPoint.date.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tooltipInfoRow}>
+                    <View style={styles.tooltipIconWrapper}>
+                      <Ionicons
+                        name="time-outline"
+                        size={16}
+                        color={COLORS.primary}
+                      />
+                    </View>
+                    <View style={styles.tooltipInfoText}>
+                      <Text style={styles.tooltipInfoLabel}>Time</Text>
+                      <Text style={styles.tooltipInfoValue}>
+                        {selectedPoint.date.toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Quick dismiss hint */}
+                <Text style={styles.tooltipDismissHint}>
+                  Tap outside to close
+                </Text>
+              </>
+            )}
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -667,11 +826,9 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: "700",
   },
-  chartScrollContainer: {
+  chartWrapper: {
     marginVertical: SPACING.md,
-  },
-  chartScrollContent: {
-    paddingRight: SPACING.lg,
+    overflow: "hidden",
   },
   chartContainer: {
     alignItems: "center",
@@ -761,5 +918,96 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.caption,
     color: COLORS.primary,
     fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  tooltipContainer: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: BORDER_RADIUS.xl || 24,
+    borderTopRightRadius: BORDER_RADIUS.xl || 24,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xl + (Platform.OS === "ios" ? 20 : 0),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: SPACING.lg,
+    opacity: 0.5,
+  },
+  tooltipPriceSection: {
+    alignItems: "center",
+    paddingVertical: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  tooltipPriceLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: "500",
+    marginBottom: SPACING.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  tooltipPrice: {
+    fontSize: 36,
+    color: COLORS.primary,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  tooltipInfoSection: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  tooltipInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+  },
+  tooltipIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tooltipInfoText: {
+    flex: 1,
+  },
+  tooltipInfoLabel: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  tooltipInfoValue: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  tooltipDismissHint: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textMuted,
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: SPACING.md,
+    fontStyle: "italic",
+    opacity: 0.7,
   },
 });

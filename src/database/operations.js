@@ -96,7 +96,7 @@ export const insertItems = async (items) => {
         createdAt, updatedAt
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         COALESCE((SELECT isFavorite FROM items WHERE id = ?), ?),
-        ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.id,
         item._id || item.id,
@@ -118,8 +118,8 @@ export const insertItems = async (items) => {
         item.rarityColor || item.rarity_color || "",
         item.image,
         item.team || "",
-        item.id, // For COALESCE check
-        item.isFavorite ? 1 : 0, // Default if new
+        item.id, // For COALESCE subquery WHERE clause
+        item.isFavorite ? 1 : 0, // For COALESCE default value
         item.stattrak ? 1 : 0,
         item.souvenir ? 1 : 0,
         wearsJson,
